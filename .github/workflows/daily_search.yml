@@ -1,0 +1,63 @@
+name: Daily Freelance Job Search
+
+# Runs daily at 07:00 UTC (= 08:00 CET / 09:00 CEST in summer).
+# Note: GitHub Actions cron uses UTC.  CET is UTC+1; CEST (summer) is UTC+2.
+# A fixed 07:00 UTC means the job runs at 08:00 CET or 09:00 CEST.
+# Adjust to 06:00 UTC if you want strictly 08:00 year-round in CEST.
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  search:
+    name: Search and Notify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright with Chromium
+        run: playwright install --with-deps chromium
+
+      # Restore the SQLite history DB so deduplication works across runs.
+      # The DB is cached by date so we get a rolling 7-day window before
+      # the cache key expires and a fresh DB is started.
+      - name: Restore SQLite history DB
+        uses: actions/cache@v4
+        with:
+          path: data/seen_postings.db
+          key: seen-postings-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            seen-postings-db-${{ runner.os }}-
+
+      - name: Run freelance job finder
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+          LOG_LEVEL: INFO
+        run: python -m src.main
