@@ -120,6 +120,7 @@ Edit `config/config.yaml` to adjust:
 ```bash
 python -m src.main
 ```
+### .venv/bin/python -m src.main
 
 ## Running Tests
 

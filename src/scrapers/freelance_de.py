@@ -7,8 +7,7 @@ Validate against the live site before use. Check robots.txt and ToS.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
-from urllib.parse import urlencode
+from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
@@ -18,10 +17,10 @@ from .base import BaseScraper
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.freelance.de"
-#SEARCH_URL = f"{BASE_URL}/Projekte/Suche/"
-
-SEARCH_URL = f"{BASE_URL}/projekte"
-https://www.freelance.de/projekte?skills=mulesoft&sortBy=last_update
+ACCESS_TOKEN_URL = f"{BASE_URL}/api/ui/users/access-token"
+SEARCH_API_URL = f"{BASE_URL}/api/ui/projects/search"
+# Example query format:
+# https://www.freelance.de/projekte?skills=mulesoft&sortBy=last_update
 
 # TODO: validate selectors against live site markup
 SEL_LISTING = "div.project-list-item, article.project-item, .project"
@@ -39,29 +38,133 @@ class FreelanceDeScraper(BaseScraper):
     site_name = "freelance.de"
 
     def search(self, keywords: List[str], locations: List[str]) -> List[JobPosting]:
-        if not self._is_allowed_by_robots(BASE_URL, "/Projekte/Suche/"):
+        if not self._is_allowed_by_robots(BASE_URL, "/projekte"):
             logger.warning("robots.txt disallows scraping %s – skipping", BASE_URL)
             return []
 
         postings: List[JobPosting] = []
+        token = self._get_access_token()
+        if not token:
+            logger.warning("Could not obtain API token from %s", self.site_name)
+            return []
 
         for keyword in keywords:
             logger.info("Searching %s for keyword: %s", self.site_name, keyword)
-            params = {"suchart": "ALL", "query": keyword}
-            url = f"{SEARCH_URL}?{urlencode(params)}"
-            resp = self._get(url)
-            if resp is None:
-                logger.warning("No response from %s for keyword=%s", self.site_name, keyword)
-                continue
-
             try:
-                batch = self._parse(resp.text, keyword)
+                batch = self._search_projects_api(token, keyword)
                 postings.extend(batch)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Parse error on %s (keyword=%s): %s", self.site_name, keyword, exc)
+                logger.warning("Search error on %s (keyword=%s): %s", self.site_name, keyword, exc)
 
         logger.info("Fetched %d postings from %s", len(postings), self.site_name)
         return postings
+
+    def _get_access_token(self) -> Optional[str]:
+        resp = self._get(ACCESS_TOKEN_URL)
+        if resp is None:
+            return None
+
+        token: Optional[str] = None
+        try:
+            payload = resp.json()
+            if isinstance(payload, str):
+                token = payload
+        except ValueError:
+            token = resp.text.strip().strip('"')
+
+        if token:
+            return token.strip()
+        return None
+
+    def _search_projects_api(self, token: str, keyword: str) -> List[JobPosting]:
+        payload = {
+            "keywords": [{"skillName": keyword}],
+            "projectsFilter": {
+                "remotePreference": [],
+                "city": [],
+                "county": [],
+                "country": [],
+                "projectStart": [],
+                "projectDuration": [],
+                "lastUpdate": [],
+                "includeExclude": [],
+                "typeOfContract": [],
+                "suggestedTerms": [],
+                "profession": [],
+                "lastChangedFilter": {"filterSectionId": None, "filterItemId": None},
+            },
+            "pagination": {"currentPage": 1, "pageSize": 25, "sortBy": "last_update", "asc": False},
+            "category": "",
+            "locale": "de-DE",
+            "searchAgentId": None,
+        }
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+
+        resp = self._get(SEARCH_API_URL, headers=headers, json=payload)
+        if resp is None:
+            logger.warning("No API response from %s for keyword=%s", self.site_name, keyword)
+            return []
+
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.warning("Invalid JSON response from %s for keyword=%s", self.site_name, keyword)
+            return []
+
+        projects = data.get("projects", []) if isinstance(data, dict) else []
+        results: List[JobPosting] = []
+        for project in projects:
+            posting = self._project_to_posting(project, keyword)
+            if posting:
+                results.append(posting)
+        return results
+
+    def _project_to_posting(self, project: Dict[str, Any], matched_keyword: str) -> Optional[JobPosting]:
+        title = str(project.get("projectTitle") or "").strip()
+        if not title:
+            return None
+
+        detail_url = str(project.get("linkToDetail") or "").strip()
+        if not detail_url:
+            project_id = str(project.get("id") or "").strip()
+            if not project_id:
+                return None
+            detail_url = f"/projekte/{project_id}"
+
+        url = detail_url if detail_url.startswith("http") else f"{BASE_URL}{detail_url}"
+
+        company = project.get("companyName")
+        company_str = str(company).strip() if company else None
+
+        locations = project.get("locations") or []
+        location = None
+        if isinstance(locations, list) and locations:
+            location = ", ".join(str(loc).strip() for loc in locations if str(loc).strip()) or None
+
+        remote = project.get("remote")
+        if remote and not location:
+            location = str(remote).strip()
+
+        description = None
+        hint = project.get("hint")
+        if isinstance(hint, list) and hint:
+            description = ", ".join(str(part).strip() for part in hint if str(part).strip()) or None
+
+        return JobPosting(
+            title=title,
+            company=company_str,
+            location=location,
+            url=url,
+            posted_date=None,
+            rate=None,
+            source_site=self.site_name,
+            description=description,
+            matched_keywords=[matched_keyword],
+        )
 
     def _parse(self, html: str, matched_keyword: str) -> List[JobPosting]:
         soup = BeautifulSoup(html, "html.parser")

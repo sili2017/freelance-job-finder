@@ -11,12 +11,45 @@ import yaml
 
 # Default path for config file
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
+DEFAULT_DOTENV_PATH = Path(__file__).parent.parent / ".env"
+
+
+def _load_dotenv_file(dotenv_path: Path) -> None:
+    """Load KEY=VALUE pairs from .env into os.environ if unset."""
+    if not dotenv_path.exists():
+        return
+
+    with open(dotenv_path, "r", encoding="utf-8") as fh:
+        for raw_line in fh:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
+
+            if "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key or key in os.environ:
+                continue
+
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
+            ):
+                value = value[1:-1]
+
+            os.environ[key] = value
 
 
 class AppConfig:
     """Application configuration loaded from config.yaml and environment variables."""
 
     def __init__(self, config_path: Optional[Path] = None) -> None:
+        _load_dotenv_file(DEFAULT_DOTENV_PATH)
         self._path = config_path or DEFAULT_CONFIG_PATH
         self._data: Dict[str, Any] = self._load()
 
