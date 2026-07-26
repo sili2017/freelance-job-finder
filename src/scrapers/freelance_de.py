@@ -18,7 +18,7 @@ from .base import BaseScraper
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.freelance.de"
-SEARCH_URL = f"{BASE_URL}/Projekte/Suche/"
+SEARCH_URL = f"{BASE_URL}/projekte"
 
 # TODO: validate selectors against live site markup
 SEL_LISTING = "div.project-list-item, article.project-item, .project"
@@ -36,7 +36,7 @@ class FreelanceDeScraper(BaseScraper):
     site_name = "freelance.de"
 
     def search(self, keywords: List[str], locations: List[str]) -> List[JobPosting]:
-        if not self._is_allowed_by_robots(BASE_URL, "/Projekte/Suche/"):
+        if not self._is_allowed_by_robots(BASE_URL, "/projekte"):
             logger.warning("robots.txt disallows scraping %s – skipping", BASE_URL)
             return []
 
@@ -44,7 +44,7 @@ class FreelanceDeScraper(BaseScraper):
 
         for keyword in keywords:
             logger.info("Searching %s for keyword: %s", self.site_name, keyword)
-            params = {"suchart": "ALL", "query": keyword}
+            params = {"skills": keyword.lower(), "sortBy": "last_update"}
             url = f"{SEARCH_URL}?{urlencode(params)}"
             resp = self._get(url)
             if resp is None:
