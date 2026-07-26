@@ -1,0 +1,77 @@
+search:
+  keywords:
+    - MuleSoft
+    - Mulesoft
+    - Anypoint
+    - TIBCO
+    - TIBCO BW
+    - BusinessWorks
+    - TIBCO EMS
+    - TIBCO BWCE
+    - TIBCO AMX BPM
+    - AMX BPM
+    - Business Events
+    - Microservices
+    - Integration Architect
+    - Integration Developer
+    - ESB
+    - API Developer
+  locations:
+    - Germany
+    - Remote
+    - Hybrid
+    - Berlin
+    - Frankfurt
+    - Munich
+    - Hamburg
+    - Stuttgart
+    - Düsseldorf
+    - Cologne
+
+sites:
+  freelancermap:
+    enabled: true
+  freelance_de:
+    enabled: true
+  gulp:
+    enabled: true
+  jobserve:
+    enabled: true
+
+rate_limit:
+  min_delay: 2.0
+  max_delay: 5.0
+
+notifications:
+  telegram:
+    enabled: true
+  email:
+    enabled: true
+  # Set to true to send a notification even if there are no new postings
+  heartbeat_when_empty: false
+
+ranking:
+  # Higher weight = more relevant
+  weights:
+    mulesoft: 10.0
+    anypoint: 9.0
+    tibco amx bpm: 10.0
+    amx bpm: 10.0
+    tibco bwce: 9.0
+    tibco bw: 8.0
+    businessworks: 8.0
+    tibco ems: 7.0
+    business events: 7.0
+    tibco: 6.0
+    integration architect: 8.0
+    integration developer: 7.0
+    api developer: 6.0
+    esb: 5.0
+    microservices: 3.0
+  # Multiplier applied when the location matches a major city or remote
+  location_boost: 1.5
+
+database:
+  path: data/seen_postings.db
+
+log_level: INFO
