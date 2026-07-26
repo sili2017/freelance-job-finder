@@ -13,6 +13,8 @@ jobs:
   search:
     name: Search and Notify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
