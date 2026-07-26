@@ -18,7 +18,10 @@ from .base import BaseScraper
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.freelance.de"
-SEARCH_URL = f"{BASE_URL}/Projekte/Suche/"
+#SEARCH_URL = f"{BASE_URL}/Projekte/Suche/"
+
+SEARCH_URL = f"{BASE_URL}/projekte"
+https://www.freelance.de/projekte?skills=mulesoft&sortBy=last_update
 
 # TODO: validate selectors against live site markup
 SEL_LISTING = "div.project-list-item, article.project-item, .project"
